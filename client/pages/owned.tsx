@@ -1,4 +1,5 @@
 import React from "react";
+import { NFTCard } from "../components";
 import { NFTKind, useNFTs } from "../hooks/useNFTs";
 
 export default function Owned() {
@@ -11,14 +12,7 @@ export default function Owned() {
     <div className="flex justify-center p-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
         {nfts.map((nft, i) => (
-          <div key={i} className="border shadow rounded-xl overflow-hidden">
-            <img src={nft.image} className="rounded" />
-            <div className="p-4 bg-black">
-              <p className="text-2xl font-bold text-white">
-                Price - {nft.price} ETH
-              </p>
-            </div>
-          </div>
+          <NFTCard key={i} nft={nft} showDetail={true} />
         ))}
       </div>
     </div>

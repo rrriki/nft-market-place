@@ -48,7 +48,7 @@ export default function Create() {
       const added = await ipfsClient.add(data);
       const url = Configuration.getIpfsFileUrl(added.path);
       const price = CurrencyService.fromEtherToWei(values.price);
-      publishItem(url, price);
+      await publishItem(url, price);
     } catch (error) {
       console.log(`ERROR creating item`, { values, error });
     }
@@ -70,7 +70,7 @@ export default function Create() {
     }
 
     try {
-      marketService.createMarketItem(tokenId, price);
+     await marketService.createMarketItem(tokenId, price);
     } catch (error) {
       console.log("ERROR creating item in the market", { tokenId, error });
     }

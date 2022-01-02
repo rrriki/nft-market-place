@@ -29,7 +29,14 @@ contract MarketPlace is ReentrancyGuard {
     bool sold;
   }
 
+  struct UserSummary {
+    uint256 ownedCount;
+    uint256 createdCount;
+  }
+
   mapping(uint256 => MarketItem) private marketItemsById;
+
+  mapping(address => UserSummary) private userSummaryByAddress;
 
   event MarketItemCreated(
     uint256 indexed itemId,
@@ -51,7 +58,7 @@ contract MarketPlace is ReentrancyGuard {
     uint256 price
   ) public payable nonReentrant {
     require(price > 0, "Price cannot be zero");
-    
+
     itemIds.increment();
     uint256 itemId = itemIds.current();
 
@@ -67,6 +74,12 @@ contract MarketPlace is ReentrancyGuard {
 
     // transfer ownsership to the marketplace
     IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);
+    
+    // update address created count
+    userSummaryByAddress[msg.sender] = UserSummary(
+      userSummaryByAddress[msg.sender].ownedCount,
+      userSummaryByAddress[msg.sender].createdCount + 1
+    );
 
     emit MarketItemCreated(
       itemId,
@@ -86,18 +99,27 @@ contract MarketPlace is ReentrancyGuard {
   {
     uint256 price = marketItemsById[itemId].price;
     uint256 tokenId = marketItemsById[itemId].tokenId;
-    console.log('creating market sale for token %s for %s eth', tokenId, price);
+    console.log("creating market sale for token %s for %s eth", tokenId, price);
     require(
       msg.value == price,
       "Please submit the asking price in order to complete the purchase"
     );
-
-    marketItemsById[itemId].seller.transfer(msg.value);
-    IERC721(nftContract).transferFrom(address(this), msg.sender, tokenId);
-    marketItemsById[itemId].owner = payable(msg.sender);
+    
+    address payable seller = marketItemsById[itemId].seller;
+    address buyer = msg.sender;
+    
+    seller.transfer(msg.value); // Pay the person who posted
+    IERC721(nftContract).transferFrom(address(this), buyer, tokenId);
+    marketItemsById[itemId].owner = payable(msg.sender); // Make the payer the new owner
     marketItemsById[itemId].sold = true;
     itemsSold.increment();
-    payable(owner).transfer(listingFee); // TODO: should be the price?
+  
+    // update address owned count
+    userSummaryByAddress[buyer] = UserSummary(
+      userSummaryByAddress[buyer].ownedCount + 1,
+      userSummaryByAddress[buyer].createdCount
+    );
+
   }
 
   function fetchUnsoldItems() public view returns (MarketItem[] memory) {
@@ -105,7 +127,7 @@ contract MarketPlace is ReentrancyGuard {
     uint256 unsoldItemCount = itemIds.current() - itemsSold.current();
     uint256 currentIndex = 0;
     MarketItem[] memory items = new MarketItem[](unsoldItemCount);
-        
+
     for (uint256 i = 1; i <= itemCount; i++) {
       MarketItem memory item = marketItemsById[i];
       if (item.owner == address(0)) {
@@ -119,8 +141,9 @@ contract MarketPlace is ReentrancyGuard {
 
   function fetchOwnedItems() public view returns (MarketItem[] memory) {
     uint256 itemCount = itemIds.current();
+    uint256 ownedCount = userSummaryByAddress[msg.sender].ownedCount;
     uint256 currentIndex = 0;
-    MarketItem[] memory items;
+    MarketItem[] memory items = new MarketItem[](ownedCount);
     for (uint256 i = 1; i <= itemCount; i++) {
       MarketItem memory item = marketItemsById[i];
       if (item.owner == msg.sender) {
@@ -128,19 +151,20 @@ contract MarketPlace is ReentrancyGuard {
         currentIndex++;
       }
     }
-        
+
     return items;
   }
 
   function fetchCreatedItems() public view returns (MarketItem[] memory) {
     uint256 itemCount = itemIds.current();
+    uint256 createdCount = userSummaryByAddress[msg.sender].createdCount;
     uint256 currentIndex = 0;
-    MarketItem[] memory items;
+    MarketItem[] memory items = new MarketItem[](createdCount);
     for (uint256 i = 1; i <= itemCount; i++) {
       MarketItem memory item = marketItemsById[i];
       if (item.seller == msg.sender) {
-       items[currentIndex] = item;
-       currentIndex++;
+        items[currentIndex] = item;
+        currentIndex++;
       }
     }
 
